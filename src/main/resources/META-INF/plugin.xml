@@ -113,6 +113,7 @@ for detailed documentation and examples.</p>
             displayName="Debugger MCP Server"/>
 
         <!-- Startup Activity -->
+        <applicationInitializedListener implementation="com.github.hechtcarmel.jetbrainsdebuggermcpplugin.startup.McpApplicationInitializedListener"/>
         <postStartupActivity implementation="com.github.hechtcarmel.jetbrainsdebuggermcpplugin.startup.McpServerStartupActivity"/>
 
         <!-- Tool window for debugger MCP server -->
