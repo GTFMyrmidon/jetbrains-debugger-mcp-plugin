@@ -52,6 +52,7 @@ object ClientConfigGenerator {
     enum class ClientType(val displayName: String, val supportsInstallCommand: Boolean = false) {
         CLAUDE_CODE("Claude Code", true),
         CODEX_CLI("Codex CLI", true),
+        ANTIGRAVITY("Antigravity"),
         GEMINI_CLI("Gemini CLI"),
         CURSOR("Cursor")
     }
@@ -90,6 +91,7 @@ object ClientConfigGenerator {
         return when (clientType) {
             ClientType.CLAUDE_CODE -> buildTerminalCommand(buildClaudeCodeCommand(serverUrl, serverName, platform), platform)
             ClientType.CODEX_CLI -> buildTerminalCommand(buildCodexCommand(serverUrl, serverName, platform), platform)
+            ClientType.ANTIGRAVITY -> generateAntigravityConfig(serverUrl, serverName)
             ClientType.GEMINI_CLI -> generateGeminiCliConfig(serverUrl, serverName)
             ClientType.CURSOR -> generateCursorConfig(serverUrl, serverName)
         }
@@ -220,6 +222,24 @@ object ClientConfigGenerator {
         }
 
     /**
+     * Generates Antigravity (IDE & CLI) MCP configuration.
+     *
+     * Uses native Streamable HTTP transport via the serverUrl field.
+     * Add this to ~/.gemini/config/mcp_config.json or .agents/mcp_config.json
+     */
+    private fun generateAntigravityConfig(serverUrl: String, serverName: String): String {
+        return """
+{
+  "mcpServers": {
+    "$serverName": {
+      "serverUrl": "$serverUrl"
+    }
+  }
+}
+        """.trimIndent()
+    }
+
+    /**
      * Generates Gemini CLI MCP configuration.
      *
      * Uses native Streamable HTTP transport via the httpUrl field.
@@ -309,6 +329,14 @@ object ClientConfigGenerator {
                 Automatically handles reinstall if already installed (port may change).
 
                 To remove manually: codex mcp remove $serverName
+            """.trimIndent()
+
+            ClientType.ANTIGRAVITY -> """
+                Add to your Antigravity MCP configuration file:
+                • Global: ~/.gemini/config/mcp_config.json
+                • Project-local: .agents/mcp_config.json
+
+                Uses native Streamable HTTP transport via the serverUrl field.
             """.trimIndent()
 
             ClientType.GEMINI_CLI -> """

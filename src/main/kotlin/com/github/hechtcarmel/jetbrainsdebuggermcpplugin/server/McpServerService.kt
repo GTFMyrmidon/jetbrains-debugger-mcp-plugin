@@ -19,6 +19,7 @@ import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.options.ShowSettingsUtil
 import io.modelcontextprotocol.kotlin.sdk.server.Server
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
 import java.util.concurrent.atomic.AtomicBoolean
@@ -66,7 +67,12 @@ class McpServerService(@Suppress("unused") private val coroutineScope: Coroutine
         toolRegistry.registerBuiltInTools()
         mcpServer = McpServerFactory.create(toolRegistry, McpToolBridge())
 
-        LOG.info("MCP Server Service initialized (server not yet started)")
+        // Start server in background service scope so it binds as soon as the service is instantiated
+        coroutineScope.launch {
+            ensureStarted()
+        }
+
+        LOG.info("MCP Server Service initialized (server starting in background)")
     }
 
     /**

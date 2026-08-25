@@ -125,6 +125,11 @@ for detailed documentation and examples.</p>
         <notificationGroup id="Debugger MCP Server" displayType="BALLOON"/>
     </extensions>
 
+    <applicationListeners>
+        <listener class="com.github.hechtcarmel.jetbrainsdebuggermcpplugin.startup.McpAppLifecycleListener"
+                  topic="com.intellij.ide.AppLifecycleListener"/>
+    </applicationListeners>
+
     <actions>
         <group id="DebuggerMcpServer.Actions" text="Debugger MCP Server" popup="true">
             <add-to-group group-id="ToolsMenu" anchor="last"/>

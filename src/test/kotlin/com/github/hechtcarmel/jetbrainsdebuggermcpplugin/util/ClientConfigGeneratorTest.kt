@@ -11,9 +11,10 @@ class ClientConfigGeneratorTest {
     fun `ClientType has all expected values`() {
         val types = ClientConfigGenerator.ClientType.entries
 
-        assertEquals(4, types.size)
+        assertEquals(5, types.size)
         assertTrue(types.contains(ClientConfigGenerator.ClientType.CLAUDE_CODE))
         assertTrue(types.contains(ClientConfigGenerator.ClientType.CODEX_CLI))
+        assertTrue(types.contains(ClientConfigGenerator.ClientType.ANTIGRAVITY))
         assertTrue(types.contains(ClientConfigGenerator.ClientType.GEMINI_CLI))
         assertTrue(types.contains(ClientConfigGenerator.ClientType.CURSOR))
     }
@@ -22,6 +23,7 @@ class ClientConfigGeneratorTest {
     fun `ClientType displayNames are set correctly`() {
         assertEquals("Claude Code", ClientConfigGenerator.ClientType.CLAUDE_CODE.displayName)
         assertEquals("Codex CLI", ClientConfigGenerator.ClientType.CODEX_CLI.displayName)
+        assertEquals("Antigravity", ClientConfigGenerator.ClientType.ANTIGRAVITY.displayName)
         assertEquals("Gemini CLI", ClientConfigGenerator.ClientType.GEMINI_CLI.displayName)
         assertEquals("Cursor", ClientConfigGenerator.ClientType.CURSOR.displayName)
     }
@@ -30,6 +32,7 @@ class ClientConfigGeneratorTest {
     fun `ClientType supportsInstallCommand is set correctly`() {
         assertTrue(ClientConfigGenerator.ClientType.CLAUDE_CODE.supportsInstallCommand)
         assertTrue(ClientConfigGenerator.ClientType.CODEX_CLI.supportsInstallCommand)
+        assertFalse(ClientConfigGenerator.ClientType.ANTIGRAVITY.supportsInstallCommand)
         assertFalse(ClientConfigGenerator.ClientType.GEMINI_CLI.supportsInstallCommand)
         assertFalse(ClientConfigGenerator.ClientType.CURSOR.supportsInstallCommand)
     }
@@ -248,6 +251,15 @@ class ClientConfigGeneratorTest {
     }
 
     @Test
+    fun `getConfigLocationHint for Antigravity mentions mcp config json`() {
+        val hint = ClientConfigGenerator.getConfigLocationHint(ClientConfigGenerator.ClientType.ANTIGRAVITY)
+
+        assertTrue(hint.contains("mcp_config.json"))
+        assertTrue(hint.contains(".agents") || hint.contains(".gemini"))
+        assertTrue(hint.contains("serverUrl") || hint.contains("Streamable HTTP"))
+    }
+
+    @Test
     fun `getConfigLocationHint for Gemini CLI mentions settings json`() {
         val hint = ClientConfigGenerator.getConfigLocationHint(ClientConfigGenerator.ClientType.GEMINI_CLI)
 
@@ -281,7 +293,7 @@ class ClientConfigGeneratorTest {
     fun `getAvailableClients returns all client types`() {
         val clients = ClientConfigGenerator.getAvailableClients()
 
-        assertEquals(4, clients.size)
+        assertEquals(5, clients.size)
         assertEquals(ClientConfigGenerator.ClientType.entries.toList(), clients)
     }
 
@@ -301,6 +313,7 @@ class ClientConfigGeneratorTest {
         assertEquals(2, clients.size)
         assertTrue(clients.contains(ClientConfigGenerator.ClientType.CLAUDE_CODE))
         assertTrue(clients.contains(ClientConfigGenerator.ClientType.CODEX_CLI))
+        assertFalse(clients.contains(ClientConfigGenerator.ClientType.ANTIGRAVITY))
         assertFalse(clients.contains(ClientConfigGenerator.ClientType.GEMINI_CLI))
         assertFalse(clients.contains(ClientConfigGenerator.ClientType.CURSOR))
     }
@@ -309,11 +322,27 @@ class ClientConfigGeneratorTest {
     fun `getCopyableClients returns all client types`() {
         val clients = ClientConfigGenerator.getCopyableClients()
 
-        assertEquals(4, clients.size)
+        assertEquals(5, clients.size)
         assertEquals(ClientConfigGenerator.ClientType.entries.toList(), clients)
     }
 
     // Config Format Tests (structure validation without actual server)
+
+    @Test
+    fun `Antigravity config format uses serverUrl`() {
+        val expectedFormat = """
+{
+  "mcpServers": {
+    "SERVER_NAME": {
+      "serverUrl": "SERVER_URL"
+    }
+  }
+}
+        """.trimIndent()
+
+        assertTrue(expectedFormat.contains("mcpServers"))
+        assertTrue(expectedFormat.contains("serverUrl"))
+    }
 
     @Test
     fun `Cursor config format is valid JSON structure`() {
