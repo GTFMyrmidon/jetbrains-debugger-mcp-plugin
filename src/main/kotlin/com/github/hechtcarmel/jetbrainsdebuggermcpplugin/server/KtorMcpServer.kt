@@ -147,28 +147,9 @@ class KtorMcpServer(
                 McpOriginGuard.install(this)
                 options { McpOriginGuard.respondToPreflight(call) }
 
-                post {
-                    val sessionIdParam = call.request.queryParameters[McpConstants.SESSION_ID_PARAM]
-                    if (!sessionIdParam.isNullOrBlank()) {
-                        handleLegacyOrStatelessPost()
-                    } else {
-                        handleStreamablePost()
-                    }
-                }
-                delete { requireStreamableTransport(call)?.handleRequest(null, call) }
-                // Supports both Streamable HTTP server-to-client notifications (when Mcp-Session-Id is provided)
-                // and SSE endpoint initialization for clients like Google Antigravity that connect via SSE.
-                sse {
-                    val sessionId = call.request.header(McpConstants.MCP_SESSION_ID_HEADER)
-                    if (!sessionId.isNullOrBlank()) {
-                        val transport = streamableTransports[sessionId]
-                        if (transport != null) {
-                            transport.handleRequest(this, call)
-                            return@sse
-                        }
-                    }
-                    serveLegacySseStream(endpointPath = McpConstants.STREAMABLE_HTTP_ENDPOINT_PATH)
-                }
+                post { handleLegacyOrStatelessPost() }
+                delete { call.respond(HttpStatusCode.OK) }
+                sse { serveLegacySseStream(endpointPath = McpConstants.STREAMABLE_HTTP_ENDPOINT_PATH) }
             }
 
             route(McpConstants.SSE_ENDPOINT_PATH) {
