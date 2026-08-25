@@ -329,9 +329,7 @@ class StreamableHttpTransportTest : McpHttpTestCase() {
     // ── Method routing ──────────────────────────────────────────────────────────────────
 
     /**
-     * GET now opens the server -> client SSE channel instead of returning 405. This is the
-     * capability the hand-rolled transport never had: notifications, progress and cancellation all
-     * travel on this stream.
+     * GET with a Streamable HTTP session opens the server -> client notification channel.
      */
     fun `test GET opens a server-to-client event stream`() {
         val response = openEventStream(path, sessionHeaders(initializeStreamable()))
@@ -340,6 +338,33 @@ class StreamableHttpTransportTest : McpHttpTestCase() {
             assertTrue(
                 "should be an event stream, was: ${response.header("Content-Type")}",
                 response.header("Content-Type").orEmpty().startsWith("text/event-stream")
+            )
+        } finally {
+            response.body().close()
+        }
+    }
+
+    /**
+     * GET without an Mcp-Session-Id header serves an SSE transport (e.g. For clients configured
+     * with an SSE transport pointing at the streamable-http URL, like Google Antigravity).
+     */
+    fun `test GET without session header opens SSE transport with endpoint event`() {
+        val response = openEventStream(path)
+        try {
+            assertEquals(200, response.statusCode())
+            assertTrue(
+                "should be an event stream, was: ${response.header("Content-Type")}",
+                response.header("Content-Type").orEmpty().startsWith("text/event-stream")
+            )
+            val lines = response.body().iterator()
+            assertTrue(lines.hasNext())
+            val eventLine = lines.next()
+            assertEquals("event: endpoint", eventLine)
+            assertTrue(lines.hasNext())
+            val dataLine = lines.next()
+            assertTrue(
+                "data line should contain endpoint path and sessionId param, was: $dataLine",
+                dataLine.startsWith("data: $path?sessionId=")
             )
         } finally {
             response.body().close()

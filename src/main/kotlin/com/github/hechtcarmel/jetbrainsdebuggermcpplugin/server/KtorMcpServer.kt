@@ -147,13 +147,27 @@ class KtorMcpServer(
                 McpOriginGuard.install(this)
                 options { McpOriginGuard.respondToPreflight(call) }
 
-                post { handleStreamablePost() }
+                post {
+                    val sessionIdParam = call.request.queryParameters[McpConstants.SESSION_ID_PARAM]
+                    if (!sessionIdParam.isNullOrBlank()) {
+                        handleLegacyOrStatelessPost()
+                    } else {
+                        handleStreamablePost()
+                    }
+                }
                 delete { requireStreamableTransport(call)?.handleRequest(null, call) }
-                // Opens the server -> client notification channel. Before the SDK migration this
-                // was a flat 405, which meant no notifications, no progress and no cancellation.
+                // Supports both Streamable HTTP server-to-client notifications (when Mcp-Session-Id is provided)
+                // and SSE endpoint initialization for clients like Google Antigravity that connect via SSE.
                 sse {
-                    val transport = requireStreamableTransport(call) ?: return@sse
-                    transport.handleRequest(this, call)
+                    val sessionId = call.request.header(McpConstants.MCP_SESSION_ID_HEADER)
+                    if (!sessionId.isNullOrBlank()) {
+                        val transport = streamableTransports[sessionId]
+                        if (transport != null) {
+                            transport.handleRequest(this, call)
+                            return@sse
+                        }
+                    }
+                    serveLegacySseStream(endpointPath = McpConstants.STREAMABLE_HTTP_ENDPOINT_PATH)
                 }
             }
 
@@ -231,14 +245,16 @@ class KtorMcpServer(
 
     // ======================== Legacy SSE + stateless ========================
 
-    private suspend fun io.ktor.server.sse.ServerSSESession.serveLegacySseStream() {
-        // The endpoint handed to the client is the plugin's own POST path, so the `endpoint` event
-        // reads `/debugger-mcp?sessionId=…` exactly as it always has.
-        val transport = SseServerTransport(McpConstants.MCP_ENDPOINT_PATH, this)
+    private suspend fun io.ktor.server.sse.ServerSSESession.serveLegacySseStream(
+        endpointPath: String = McpConstants.MCP_ENDPOINT_PATH
+    ) {
+        // The endpoint handed to the client is the plugin's POST path, so the `endpoint` event
+        // reads `<endpointPath>?sessionId=…`
+        val transport = SseServerTransport(endpointPath, this)
         sseTransports[transport.sessionId] = transport
 
         mcpServer.createSession(transport)
-        LOG.info("Legacy SSE session established: ${transport.sessionId}")
+        LOG.info("SSE session established: ${transport.sessionId} on $endpointPath")
 
         try {
             awaitCancellation()
