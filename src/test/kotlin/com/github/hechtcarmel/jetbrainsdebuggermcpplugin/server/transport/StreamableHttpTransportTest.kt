@@ -370,4 +370,16 @@ class StreamableHttpTransportTest : McpHttpTestCase() {
             response.body().close()
         }
     }
+
+    fun `test POST while SSE stream is open succeeds without blocking`() {
+        val sessionId = initializeStreamable()
+        val sseResponse = openEventStream(path, sessionHeaders(sessionId))
+        try {
+            assertEquals(200, sseResponse.statusCode())
+            val response = post(path, rpc("notifications/initialized", id = null), sessionHeaders(sessionId))
+            assertEquals(202, response.statusCode())
+        } finally {
+            sseResponse.body().close()
+        }
+    }
 }
