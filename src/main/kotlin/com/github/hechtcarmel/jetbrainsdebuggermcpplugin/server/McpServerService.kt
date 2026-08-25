@@ -67,12 +67,7 @@ class McpServerService(@Suppress("unused") private val coroutineScope: Coroutine
         toolRegistry.registerBuiltInTools()
         mcpServer = McpServerFactory.create(toolRegistry, McpToolBridge())
 
-        // Start server in background service scope so it binds as soon as the service is instantiated
-        coroutineScope.launch {
-            ensureStarted()
-        }
-
-        LOG.info("MCP Server Service initialized (server starting in background)")
+        LOG.info("MCP Server Service initialized (server not yet started)")
     }
 
     /**
