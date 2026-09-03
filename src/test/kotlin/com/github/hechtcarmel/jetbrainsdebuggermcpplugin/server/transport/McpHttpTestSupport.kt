@@ -177,13 +177,11 @@ abstract class McpHttpTestCase : BasePlatformTestCase() {
             rpc("initialize", params = """{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"test","version":"1"}}""")
         )
         assertEquals("initialize should succeed: ${response.body()}", 200, response.statusCode())
-        return requireNotNull(response.header(McpConstants.MCP_SESSION_ID_HEADER)) {
-            "initialize did not issue an ${McpConstants.MCP_SESSION_ID_HEADER} header"
-        }
+        return response.header(McpConstants.MCP_SESSION_ID_HEADER).orEmpty()
     }
 
     protected fun sessionHeaders(sessionId: String): Map<String, String> =
-        mapOf(McpConstants.MCP_SESSION_ID_HEADER to sessionId)
+        if (sessionId.isNotBlank()) mapOf(McpConstants.MCP_SESSION_ID_HEADER to sessionId) else emptyMap()
 
     /**
      * Runs [block] on a background thread while pumping the IDE event queue, and returns its result.

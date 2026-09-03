@@ -21,7 +21,7 @@ class StreamableHttpTransportTest : McpHttpTestCase() {
 
     // ── Handshake ───────────────────────────────────────────────────────────────────────
 
-    fun `test initialize issues a session id and reports server identity`() {
+    fun `test initialize reports server identity and capabilities`() {
         val response = post(
             path,
             rpc("initialize", params = """{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"t","version":"1"}}""")
@@ -30,11 +30,7 @@ class StreamableHttpTransportTest : McpHttpTestCase() {
         assertEquals(200, response.statusCode())
 
         val sessionId = response.header(McpConstants.MCP_SESSION_ID_HEADER)
-        assertNotNull("initialize must issue an ${McpConstants.MCP_SESSION_ID_HEADER} header", sessionId)
-        assertTrue(
-            "Session id should be dash-free hex, was: $sessionId",
-            sessionId!!.matches(Regex("[0-9a-f]{32}"))
-        )
+        assertNull("stateless initialize must not issue an ${McpConstants.MCP_SESSION_ID_HEADER} header", sessionId)
 
         val result = response.jsonBody()["result"]!!.jsonObject
         assertEquals(
@@ -73,41 +69,21 @@ class StreamableHttpTransportTest : McpHttpTestCase() {
         )
     }
 
-    // ── Session enforcement ─────────────────────────────────────────────────────────────
+    // ── Stateless semantics ─────────────────────────────────────────────────────────────
 
-    /**
-     * A non-initialize request with no session is still refused, but the refusal now comes from
-     * the SDK's session state machine ("not initialized") rather than from a hand-written check
-     * for a missing header. The status stays 400; the code and message changed.
-     */
-    fun `test requests without a session id are rejected`() {
+    fun `test requests without a session id succeed in stateless mode`() {
         val response = post(path, rpc("tools/list"))
 
-        assertEquals(400, response.statusCode())
-        val error = response.jsonBody()["error"]!!.jsonObject
-        assertEquals(-32000, error["code"]!!.jsonPrimitive.intOrNull)
-        assertTrue(
-            "Error should say the session was never initialized, was: ${error["message"]}",
-            error["message"]!!.jsonPrimitive.content.contains("not initialized")
-        )
+        assertEquals(200, response.statusCode())
+        val tools = response.jsonBody()["result"]!!.jsonObject["tools"]!!.jsonArray
+        assertEquals(registry.getToolCount(), tools.size)
     }
 
-    fun `test requests with an unknown session id are rejected`() {
-        val response = post(path, rpc("tools/list"), sessionHeaders("00000000000000000000000000000000"))
+    fun `test DELETE is rejected with 405 Method Not Allowed in stateless mode`() {
+        val response = delete(path)
 
-        assertEquals(404, response.statusCode())
-    }
-
-    fun `test DELETE terminates the session so later requests fail`() {
-        val sessionId = initializeStreamable()
-
-        assertEquals(200, post(path, rpc("ping"), sessionHeaders(sessionId)).statusCode())
-        assertEquals(200, delete(path, sessionHeaders(sessionId)).statusCode())
-        assertEquals(
-            "A deleted session must no longer be usable",
-            404,
-            post(path, rpc("ping"), sessionHeaders(sessionId)).statusCode()
-        )
+        assertEquals(405, response.statusCode())
+        assertEquals("POST", response.header("Allow"))
     }
 
     // ── Methods ─────────────────────────────────────────────────────────────────────────
@@ -329,57 +305,12 @@ class StreamableHttpTransportTest : McpHttpTestCase() {
     // ── Method routing ──────────────────────────────────────────────────────────────────
 
     /**
-     * GET with a Streamable HTTP session opens the server -> client notification channel.
+     * GET on the Streamable HTTP endpoint is rejected with 405 Method Not Allowed.
+     * Clients probing for SSE (like Google Antigravity) receive 405 and fall back to POST.
      */
-    fun `test GET opens a server-to-client event stream`() {
-        val response = openEventStream(path, sessionHeaders(initializeStreamable()))
-        try {
-            assertEquals(200, response.statusCode())
-            assertTrue(
-                "should be an event stream, was: ${response.header("Content-Type")}",
-                response.header("Content-Type").orEmpty().startsWith("text/event-stream")
-            )
-        } finally {
-            response.body().close()
-        }
-    }
-
-    /**
-     * GET without an Mcp-Session-Id header serves an SSE transport (e.g. For clients configured
-     * with an SSE transport pointing at the streamable-http URL, like Google Antigravity).
-     */
-    fun `test GET without session header opens SSE transport with endpoint event`() {
-        val response = openEventStream(path)
-        try {
-            assertEquals(200, response.statusCode())
-            assertTrue(
-                "should be an event stream, was: ${response.header("Content-Type")}",
-                response.header("Content-Type").orEmpty().startsWith("text/event-stream")
-            )
-            val lines = response.body().iterator()
-            assertTrue(lines.hasNext())
-            val eventLine = lines.next()
-            assertEquals("event: endpoint", eventLine)
-            assertTrue(lines.hasNext())
-            val dataLine = lines.next()
-            assertTrue(
-                "data line should contain endpoint path and sessionId param, was: $dataLine",
-                dataLine.startsWith("data: $path?sessionId=")
-            )
-        } finally {
-            response.body().close()
-        }
-    }
-
-    fun `test POST while SSE stream is open succeeds without blocking`() {
-        val sessionId = initializeStreamable()
-        val sseResponse = openEventStream(path, sessionHeaders(sessionId))
-        try {
-            assertEquals(200, sseResponse.statusCode())
-            val response = post(path, rpc("notifications/initialized", id = null), sessionHeaders(sessionId))
-            assertEquals(202, response.statusCode())
-        } finally {
-            sseResponse.body().close()
-        }
+    fun `test GET is rejected with 405 Method Not Allowed`() {
+        val response = get(path)
+        assertEquals(405, response.statusCode())
+        assertEquals("POST", response.header("Allow"))
     }
 }

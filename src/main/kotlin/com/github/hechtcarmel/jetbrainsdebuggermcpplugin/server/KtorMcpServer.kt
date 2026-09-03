@@ -3,20 +3,22 @@ package com.github.hechtcarmel.jetbrainsdebuggermcpplugin.server
 import com.github.hechtcarmel.jetbrainsdebuggermcpplugin.McpConstants
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.diagnostic.logger
+import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.Application
 import io.ktor.server.application.ApplicationCall
+import io.ktor.server.application.call
 import io.ktor.server.application.install
 import io.ktor.server.cio.CIO
 import io.ktor.server.cio.CIOApplicationEngine
 import io.ktor.server.engine.EmbeddedServer
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
-import io.ktor.server.request.header
 import io.ktor.server.response.respond
 import io.ktor.server.routing.RoutingContext
 import io.ktor.server.routing.delete
+import io.ktor.server.routing.get
 import io.ktor.server.routing.options
 import io.ktor.server.routing.post
 import io.ktor.server.routing.route
@@ -32,7 +34,6 @@ import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
 import java.net.BindException
-import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -48,8 +49,8 @@ import java.util.concurrent.ConcurrentHashMap
  *
  * Three transports are served, all of which real clients depend on:
  *
- *  1. **Streamable HTTP** (MCP 2025-03-26 and later) — `POST`/`GET`/`DELETE
- *     /debugger-mcp/streamable-http`, session in the `Mcp-Session-Id` header.
+ *  1. **Streamable HTTP** (MCP 2025-03-26 and later) — stateless `POST
+ *     /debugger-mcp/streamable-http`, matching index plugin.
  *  2. **Legacy HTTP+SSE** (MCP 2024-11-05) — `GET /debugger-mcp/sse` for the stream, with replies
  *     posted back to `/debugger-mcp?sessionId=…`.
  *  3. **Stateless HTTP** — `POST /debugger-mcp` with no session at all. Not an MCP transport; a
@@ -62,9 +63,6 @@ class KtorMcpServer(
 ) : Disposable {
 
     private var server: EmbeddedServer<CIOApplicationEngine, CIOApplicationEngine.Configuration>? = null
-
-    /** Live Streamable HTTP transports, keyed by the session id the SDK minted for each. */
-    private val streamableTransports = ConcurrentHashMap<String, StreamableHttpServerTransport>()
 
     /** Live legacy-SSE transports, keyed by the `sessionId` query parameter. */
     private val sseTransports = ConcurrentHashMap<String, SseServerTransport>()
@@ -114,11 +112,9 @@ class KtorMcpServer(
             // still awaiting inside it surfaces as an async JobCancellationException error log.
             runBlocking {
                 withTimeoutOrNull(2_000) {
-                    streamableTransports.values.forEach { runCatching { it.close() } }
                     sseTransports.values.forEach { runCatching { it.close() } }
                 }
             }
-            streamableTransports.clear()
             sseTransports.clear()
             server?.stop(1000, 2000)
             server = null
@@ -148,8 +144,14 @@ class KtorMcpServer(
                 options { McpOriginGuard.respondToPreflight(call) }
 
                 post { handleLegacyOrStatelessPost() }
-                delete { call.respond(HttpStatusCode.OK) }
-                sse { serveLegacySseStream(endpointPath = McpConstants.STREAMABLE_HTTP_ENDPOINT_PATH) }
+                get {
+                    call.response.headers.append(HttpHeaders.Allow, "POST")
+                    call.respond(HttpStatusCode.MethodNotAllowed, "Method Not Allowed")
+                }
+                delete {
+                    call.response.headers.append(HttpHeaders.Allow, "POST")
+                    call.respond(HttpStatusCode.MethodNotAllowed, "Method Not Allowed")
+                }
             }
 
             route(McpConstants.SSE_ENDPOINT_PATH) {
@@ -169,59 +171,6 @@ class KtorMcpServer(
                 post { handleLegacyOrStatelessPost() }
             }
         }
-    }
-
-    // ======================== Streamable HTTP ========================
-
-    private suspend fun RoutingContext.handleStreamablePost() {
-        val call = call.withLenientMcpHeaders()
-        val sessionId = call.request.header(McpConstants.MCP_SESSION_ID_HEADER)
-        if (sessionId != null) {
-            requireStreamableTransport(call)?.handleRequest(null, call)
-            return
-        }
-
-        // No session yet: this is an `initialize`. Mint a transport, let the SDK negotiate, and
-        // register it under whichever id the SDK settles on.
-        val transport = StreamableHttpServerTransport(
-            StreamableHttpServerTransport.Configuration(enableJsonResponse = true)
-        )
-        // Preserve the dash-free 32-hex session id format clients have seen since 4.x.
-        transport.setSessionIdGenerator { UUID.randomUUID().toString().replace("-", "") }
-        transport.setOnSessionInitialized { streamableTransports[it] = transport }
-        transport.setOnSessionClosed { streamableTransports.remove(it) }
-
-        mcpServer.createSession(transport)
-        transport.handleRequest(null, call)
-
-        // If the handshake did not complete (the request wasn't a valid initialize), nothing
-        // registered this transport — close it, or its ServerSession stays in the shared SDK
-        // Server's registry forever. A successful initialize sets sessionId and registers the
-        // transport, so this never closes a live session.
-        if (transport.sessionId == null) {
-            transport.close()
-        }
-    }
-
-    /**
-     * Resolves the transport for the request's `Mcp-Session-Id`, or rejects the call.
-     *
-     * Rejecting (rather than silently returning) matters most on the SSE route: without it an
-     * unknown session would receive an empty 200 event stream and hang waiting for events that
-     * can never arrive.
-     */
-    private suspend fun requireStreamableTransport(call: ApplicationCall): StreamableHttpServerTransport? {
-        val sessionId = call.request.header(McpConstants.MCP_SESSION_ID_HEADER)
-        if (sessionId.isNullOrBlank()) {
-            call.respond(HttpStatusCode.BadRequest, "Missing ${McpConstants.MCP_SESSION_ID_HEADER} header")
-            return null
-        }
-        val transport = streamableTransports[sessionId]
-        if (transport == null) {
-            call.respond(HttpStatusCode.NotFound, "Session not found or expired")
-            return null
-        }
-        return transport
     }
 
     // ======================== Legacy SSE + stateless ========================
