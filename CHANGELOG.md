@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [5.2.0] - 2026-10-26
+
 ### Added
 
 - **`get_console_output` tool** ([#80](https://github.com/hechtcarmel/jetbrains-debugger-mcp-plugin/issues/80)) — Reads logpoint results and retained debug-console output while a session runs or is paused. Supports bounded tail pages, backward pagination, character limits and explicit deferred/paused-output flags. Reads language-console history without exposing unsubmitted input; no separate log store or changes to execution state.
@@ -285,7 +287,8 @@
 - MCP protocol version 2024-11-05
 - Compatible with all JetBrains IDEs that support XDebugger (IntelliJ IDEA, PyCharm, WebStorm, GoLand, PhpStorm, RubyMine, CLion, Rider, Android Studio)
 
-[Unreleased]: https://github.com/hechtcarmel/jetbrains-debugger-mcp-plugin/compare/v5.1.0...HEAD
+[Unreleased]: https://github.com/hechtcarmel/jetbrains-debugger-mcp-plugin/compare/v5.2.0...HEAD
+[5.2.0]: https://github.com/hechtcarmel/jetbrains-debugger-mcp-plugin/compare/v5.1.0...v5.2.0
 [5.1.0]: https://github.com/hechtcarmel/jetbrains-debugger-mcp-plugin/compare/v5.0.2...v5.1.0
 [5.0.2]: https://github.com/hechtcarmel/jetbrains-debugger-mcp-plugin/compare/v5.0.1...v5.0.2
 [5.0.1]: https://github.com/hechtcarmel/jetbrains-debugger-mcp-plugin/compare/v5.0.0...v5.0.1
