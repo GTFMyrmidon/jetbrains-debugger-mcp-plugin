@@ -8,7 +8,11 @@ import com.intellij.execution.filters.TextConsoleBuilderFactory
 import com.intellij.execution.ui.ConsoleView
 import com.intellij.execution.ui.ConsoleViewContentType
 import com.intellij.openapi.fileTypes.PlainTextLanguage
+import com.intellij.openapi.actionSystem.CommonDataKeys
+import com.intellij.openapi.actionSystem.DataSink
+import com.intellij.openapi.actionSystem.UiDataProvider
 import com.intellij.openapi.editor.EditorFactory
+import com.intellij.openapi.editor.EditorKind
 import com.intellij.openapi.util.Disposer
 import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
@@ -84,15 +88,17 @@ class ConsoleOutputReaderTest : BasePlatformTestCase() {
         component // create the editor before scheduling output
     }
 
-    private fun render(console: ConsoleView) {
+    private fun waitFor(message: String, ready: () -> Boolean) {
         val deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(10)
-        while (console.hasDeferredOutput() && System.nanoTime() < deadline) {
+        while (!ready() && System.nanoTime() < deadline) {
             PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
             Thread.sleep(10)
         }
         PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
-        assertFalse("Console output never rendered", console.hasDeferredOutput())
+        assertTrue(message, ready())
     }
+
+    private fun render(console: ConsoleView) = waitFor("Console output never rendered") { !console.hasDeferredOutput() }
 
     fun `test standard console contains stdout stderr and debugger generated messages`() {
         val console = console()
@@ -106,8 +112,9 @@ class ConsoleOutputReaderTest : BasePlatformTestCase() {
         assertEquals(snapshot, ConsoleOutputReader.read(console, "session", 100, 0, 20000))
         // The reader borrows the IDE document rather than keeping a second persistent buffer.
         console.clear()
-        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
-        assertEquals("", ConsoleOutputReader.read(console, "session", 100, 0, 20000).output)
+        waitFor("Cleared output must not be retained by the reader") {
+            ConsoleOutputReader.read(console, "session", 100, 0, 20000).output.isEmpty()
+        }
     }
 
     fun `test reading paused output reports pending text without unpausing or flushing it`() {
@@ -153,11 +160,27 @@ class ConsoleOutputReaderTest : BasePlatformTestCase() {
     }
 
     fun `test unsupported console returns a useful error instead of empty success`() {
+        assertUnsupported(javax.swing.JPanel())
+    }
+
+    fun `test a foreign console editor in the data context is never read`() {
+        val factory = EditorFactory.getInstance()
+        val editor = factory.createViewer(factory.createDocument("another session's output\n"), project, EditorKind.CONSOLE)
+        Disposer.register(testRootDisposable) { factory.releaseEditor(editor) }
+        val component = object : javax.swing.JPanel(), UiDataProvider {
+            override fun uiDataSnapshot(sink: DataSink) {
+                sink[CommonDataKeys.EDITOR] = editor
+            }
+        }
+        assertUnsupported(component)
+    }
+
+    private fun assertUnsupported(component: javax.swing.JComponent) {
         val console = java.lang.reflect.Proxy.newProxyInstance(
             ConsoleView::class.java.classLoader, arrayOf(ConsoleView::class.java)
         ) { _, method, _ ->
             when (method.name) {
-                "getComponent" -> javax.swing.JPanel()
+                "getComponent" -> component
                 else -> throw UnsupportedOperationException(method.name)
             }
         } as ConsoleView
