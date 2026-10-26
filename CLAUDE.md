@@ -30,6 +30,7 @@ IMPORTANT: When debugging, prefer using jetbrains-debugger MCP tools to interact
 | `start_debug_session` | Start a new debug session |
 | `stop_debug_session` | Stop a debug session |
 | `get_debug_session_status` | Get comprehensive session state (variables, stack, source) |
+| `get_console_output` | Read retained console text and logpoint results while running or paused |
 
 ### Breakpoints
 | Tool | Description |
@@ -155,7 +156,7 @@ If omitted with multiple projects, tools return an error listing available proje
 2. set suspend_policy to "none" for all breakpoints
 3. start_debug_session
 4. resume_execution
-5. Check IDE console for trace output
+5. get_console_output for retained trace output (read again later if hasDeferredOutput is true)
 ```
 
 ## Error Handling
@@ -236,7 +237,7 @@ in step with `platformVersion`.
 
 | Layer | Location | What it protects |
 |-------|----------|------------------|
-| **Golden contracts** | `contract/` | The client-facing surface: 24 tool schemas, 27 result-model wire shapes |
+| **Golden contracts** | `contract/` | The client-facing surface: 25 tool schemas, 28 result-model wire shapes |
 | **SDK assumptions** | `mcp/McpSdkAssumptionsTest` | What this plugin relies on the MCP SDK doing — fails on an SDK bump, not a refactor |
 | **Transport conformance** | `server/transport/` | Every route, status code, header, Origin decision and SSE frame, over real HTTP |
 | **Tool behaviour** | `tools/**/*BehaviorTest` | What a tool actually does to IDE state |
@@ -290,12 +291,12 @@ Stated plainly so nobody mistakes the suite for more than it is:
   run configuration started by `start_debug_session`, and drives the success paths of
   `set_breakpoint`, `wait_for_pause` (including breakpoint attribution and the embedded
   variables), `get_variables`, `evaluate_expression`, `step_over`, `get_stack_trace` and
-  `stop_debug_session` against the genuinely paused JVM, plus `jump_to_line`'s refusal there.
+  `stop_debug_session` against the genuinely paused JVM, plus `jump_to_line`'s refusal there and real non-suspending logpoints read through `get_console_output`.
   `livedebug/LivePythonDebugSessionTest` runs a Python script under pydevd through an ordinary
   Python run configuration and covers `jump_to_line` end to end — on one CPython (3.12, where
   PyCharm uses `sys.monitoring`), one thread, no `with`/`finally`/generator frames. Still uncovered
   live: `step_into`, `step_out`, `run_to_line`, `pause_execution`, `set_variable`,
-  `list_threads`, `select_stack_frame`, conditional/log breakpoints actually firing, and every
+  `list_threads`, `select_stack_frame`, conditional breakpoints actually firing, and every
   debugger other than the JVM's and pydevd.
 - **`jump_to_line` works on pydevd only.** The platform has no language-agnostic
   "set next statement" API, and the tool reaches `PyDebugProcess.startSetNextStatement`
@@ -329,6 +330,10 @@ Stated plainly so nobody mistakes the suite for more than it is:
   rather than by driving a real tool window.
 
 ---
+
+## Developer Guide: Console Output
+
+`get_console_output` reads the IDE-owned console document on the EDT using public APIs. It reads language-console history (not pending REPL input), unwraps console wrappers, and consistently selects the primary duplex console. It returns bounded pages without copying the whole document, installing output listeners, forcing a flush, retaining its own history, or changing the user's paused-output setting. Deferred output is reported explicitly. Line numbers are relative to the retained/cyclic buffer, not durable cursors. The live JVM test covers actual logpoints; other debugger backends are not live-tested for this tool.
 
 ## Developer Guide: MCP Structured Outputs
 

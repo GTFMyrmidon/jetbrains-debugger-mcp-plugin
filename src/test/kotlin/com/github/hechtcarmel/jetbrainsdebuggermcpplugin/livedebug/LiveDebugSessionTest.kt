@@ -10,6 +10,7 @@ import com.github.hechtcarmel.jetbrainsdebuggermcpplugin.tools.execution.ResumeT
 import com.github.hechtcarmel.jetbrainsdebuggermcpplugin.tools.execution.StepOverTool
 import com.github.hechtcarmel.jetbrainsdebuggermcpplugin.tools.execution.WaitForPauseTool
 import com.github.hechtcarmel.jetbrainsdebuggermcpplugin.tools.session.ListDebugSessionsTool
+import com.github.hechtcarmel.jetbrainsdebuggermcpplugin.tools.session.GetConsoleOutputTool
 import com.github.hechtcarmel.jetbrainsdebuggermcpplugin.tools.session.StartDebugSessionTool
 import com.github.hechtcarmel.jetbrainsdebuggermcpplugin.tools.session.StopDebugSessionTool
 import com.github.hechtcarmel.jetbrainsdebuggermcpplugin.tools.stack.GetStackTraceTool
@@ -82,7 +83,7 @@ class LiveDebugSessionTest : JavaCodeInsightFixtureTestCase() {
                 public static void main(String[] args) throws Exception {
                     int total = 0;
                     for (int i = 0; i < 5; i++) {
-                        total += i;
+                        total += i; // LOGPOINT
                     }
                     int doubled = total * 2; // BREAKPOINT
                     System.out.println(doubled); // STEP_TARGET
@@ -133,6 +134,15 @@ class LiveDebugSessionTest : JavaCodeInsightFixtureTestCase() {
         assertEquals("set", setPayload.str("status"))
         val breakpointId = setPayload.str("breakpointId")
 
+        // Debugger-generated output: a Remote attach does not forward this JVM's stdout to
+        // the IDE console, so a ProcessHandler-only implementation cannot pass this check.
+        structured(runTool(SetBreakpointTool(), buildJsonObject {
+            put("file_path", sourcePath)
+            put("line", markerLine("// LOGPOINT"))
+            put("suspend_policy", "none")
+            put("log_message", "TRACE i={i}")
+        }))
+
         structured(runTool(StartDebugSessionTool(), buildJsonObject {
             put("configuration_name", configName)
         }))
@@ -149,6 +159,11 @@ class LiveDebugSessionTest : JavaCodeInsightFixtureTestCase() {
             location.str("file").endsWith("LiveDebugTarget.java")
         )
         assertEquals(BREAKPOINT_LINE, location["line"]!!.jsonPrimitive.int)
+
+        waitUntil("logpoint output to render in the debug console") {
+            val output = structured(runTool(GetConsoleOutputTool(), buildJsonObject {})).str("output")
+            (0..4).all { output.contains("TRACE i=$it") }
+        }
 
         val hit = paused["breakpointHit"]!!.jsonObject
         assertEquals(
@@ -249,6 +264,10 @@ class LiveDebugSessionTest : JavaCodeInsightFixtureTestCase() {
         // Registration of an attached session is asynchronous; poll through the tool layer (the
         // same machinery a client uses, and runTool pumps the EDT the registration needs).
         val sessionId = awaitRunningSessionId()
+
+        val console = structured(runTool(GetConsoleOutputTool(), buildJsonObject { put("session_id", sessionId) }))
+        assertEquals(sessionId, console.str("sessionId"))
+        assertEquals("Reading a console must leave the JVM running", "running", sessionState(sessionId))
 
         // ── pause_execution suspends a free-running program ────────────────────────────
         // No session_id on purpose: a running session that has never paused is not the IDE's

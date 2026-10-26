@@ -77,6 +77,17 @@ class ToolArgumentBoundaryTest : McpHttpTestCase() {
 
     // ── Wrong JSON kind ─────────────────────────────────────────────────────────────────
 
+    fun `test get_console_output validates bounded pagination and session errors over HTTP`() {
+        assertEquals("No active debug session", errorText(callTool("get_console_output", "{}")))
+        assertEquals("Session not found: bogus", errorText(callTool("get_console_output", """{"session_id":"bogus"}""")))
+        for (arguments in listOf("""{"lines":0}""", """{"lines":1001}""")) {
+            assertEquals("Invalid value for parameter: lines (must be between 1 and 1000)", errorText(callTool("get_console_output", arguments)))
+        }
+        assertEquals("Invalid value for parameter: offset (must be >= 0)", errorText(callTool("get_console_output", """{"offset":-1}""")))
+        assertEquals("Invalid type for parameter: lines (expected integer)", errorText(callTool("get_console_output", """{"lines":"5"}""")))
+        assertEquals("Invalid value for parameter: max_chars (must be between 1 and 100000)", errorText(callTool("get_console_output", """{"max_chars":100001}""")))
+    }
+
     fun `test a stringified integer is a type error not a missing parameter`() {
         assertEquals(
             "Invalid type for parameter: line (expected integer)",

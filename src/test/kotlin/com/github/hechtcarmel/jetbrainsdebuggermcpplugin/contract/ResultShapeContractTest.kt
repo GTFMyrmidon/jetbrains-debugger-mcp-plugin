@@ -5,6 +5,7 @@ import com.github.hechtcarmel.jetbrainsdebuggermcpplugin.tools.breakpoint.Breakp
 import com.github.hechtcarmel.jetbrainsdebuggermcpplugin.tools.models.BreakpointHitInfo
 import com.github.hechtcarmel.jetbrainsdebuggermcpplugin.tools.models.BreakpointInfo
 import com.github.hechtcarmel.jetbrainsdebuggermcpplugin.tools.models.DebugSessionInfo
+import com.github.hechtcarmel.jetbrainsdebuggermcpplugin.tools.models.ConsoleOutputResult
 import com.github.hechtcarmel.jetbrainsdebuggermcpplugin.tools.models.DebugSessionStatus
 import com.github.hechtcarmel.jetbrainsdebuggermcpplugin.tools.models.EvaluateResponse
 import com.github.hechtcarmel.jetbrainsdebuggermcpplugin.tools.models.EvaluationResult
@@ -86,6 +87,7 @@ class ResultShapeContractTest {
 
             // Sessions
             serializer<DebugSessionInfo>().descriptor,
+            serializer<ConsoleOutputResult>().descriptor,
             serializer<DebugSessionStatus>().descriptor,
             serializer<BreakpointHitInfo>().descriptor,
             serializer<SourceLocation>().descriptor,
