@@ -51,6 +51,10 @@ class ConsoleOutputToolBehaviorTest : McpHttpTestCase() {
                 }
 
                 override fun createConsole(): ConsoleView = console
+
+                // There is no real debuggee to stop. XDebugProcess's default stop() throws
+                // AbstractMethodError, preventing the manager from removing this test session.
+                override fun stop() {}
             }
         }).also { sessions.add(it) }
     }
@@ -63,7 +67,7 @@ class ConsoleOutputToolBehaviorTest : McpHttpTestCase() {
         val session = session("Console output", "one\ntwo\nthree\n")
         assertFalse(session.isPaused)
         val result = call("""{"lines":2}""")
-        assertFalse(result["isError"]!!.jsonPrimitive.boolean)
+        assertFalse("Tool reported an error: $result", result["isError"]!!.jsonPrimitive.boolean)
         val body = result["structuredContent"]!!.jsonObject
         assertEquals(StableObjectIds.idFor(session), body["sessionId"]!!.jsonPrimitive.content)
         assertEquals("two\nthree\n", body["output"]!!.jsonPrimitive.content)
