@@ -26,6 +26,7 @@ A JetBrains IDE plugin that exposes an **MCP (Model Context Protocol) server**, 
 - **Line Breakpoints** - Set breakpoints at any valid location
 - **Conditional Breakpoints** - Add conditions that must be true to pause
 - **Tracepoints** - Log messages without pausing execution
+- **Console Output** - Read logpoint results and retained debug-console text with bounded pagination
 
 **Execution Control**
 - **Step Over/Into/Out** - Navigate through code line by line
@@ -58,7 +59,7 @@ Unlike manual debugging, this plugin enables:
 - **Rich Context in Single Calls** - Get variables, stack, and source in one request
 - **Programmatic Breakpoint Control** - Set conditional breakpoints with complex expressions
 - **Cross-IDE Compatibility** - Works with any JetBrains IDE that supports XDebugger
-- **24 Comprehensive Tools** - Full debugging capability through MCP
+- **25 Comprehensive Tools** - Full debugging capability through MCP
 - **Configurable Server** - IDE-specific ports with customizable host binding
 
 Perfect for AI-assisted development workflows where you want your assistant to investigate bugs, validate fixes, or explore code behavior autonomously.
@@ -229,7 +230,7 @@ Add to `~/.codeium/windsurf/mcp_config.json`:
 
 ## Available Tools
 
-The plugin provides **24 MCP tools** organized by category:
+The plugin provides **25 MCP tools** organized by category:
 
 ### Run Configuration Tools
 
@@ -246,6 +247,7 @@ The plugin provides **24 MCP tools** organized by category:
 | `start_debug_session` | Start a new debug session for a run configuration |
 | `stop_debug_session` | Stop/terminate a debug session |
 | `get_debug_session_status` | Get comprehensive status (variables, stack, source) in one call |
+| `get_console_output` | Read retained console output, including logpoints, while running or paused |
 
 ### Breakpoint Tools
 
@@ -294,6 +296,8 @@ The plugin provides **24 MCP tools** organized by category:
 | Tool | Description |
 |------|-------------|
 | `evaluate_expression` | Evaluate an expression or code fragment in debug context |
+
+Read tracepoint results with `get_console_output` after setting `log_message` and `suspend_policy: "none"`. It returns the newest 100 retained lines by default; `offset` pages backward, and `max_chars` bounds large lines. If `hasDeferredOutput` is true, read again after the IDE renders the queued text. Output is limited to the IDE console buffer; this tool does not retain cleared/evicted output or read plain Run configurations and terminals.
 
 > **Note**: For detailed tool documentation with parameters, examples, and response formats, see [USAGE.md](USAGE.md).
 

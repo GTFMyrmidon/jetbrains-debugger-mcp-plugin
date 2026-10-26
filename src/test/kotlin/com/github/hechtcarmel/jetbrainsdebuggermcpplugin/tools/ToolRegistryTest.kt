@@ -153,10 +153,10 @@ class ToolRegistryTest {
     }
 
     @Test
-    fun `registerBuiltInTools registers exactly 24 tools`() {
+    fun `registerBuiltInTools registers exactly 25 tools`() {
         registry.registerBuiltInTools()
 
-        assertEquals(24, registry.getToolCount())
+        assertEquals(25, registry.getToolCount())
     }
 
     @Test
@@ -167,11 +167,12 @@ class ToolRegistryTest {
         assertNotNull(registry.getTool("list_run_configurations"))
         assertNotNull(registry.getTool("execute_run_configuration"))
 
-        // Debug Session Tools (4)
+        // Debug Session Tools (5)
         assertNotNull(registry.getTool("list_debug_sessions"))
         assertNotNull(registry.getTool("start_debug_session"))
         assertNotNull(registry.getTool("stop_debug_session"))
         assertNotNull(registry.getTool("get_debug_session_status"))
+        assertNotNull(registry.getTool("get_console_output"))
 
         // Breakpoint Tools (3)
         assertNotNull(registry.getTool("list_breakpoints"))

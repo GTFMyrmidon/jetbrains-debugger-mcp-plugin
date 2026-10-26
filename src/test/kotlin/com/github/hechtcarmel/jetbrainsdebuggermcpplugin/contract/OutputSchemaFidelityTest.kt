@@ -2,6 +2,7 @@ package com.github.hechtcarmel.jetbrainsdebuggermcpplugin.contract
 
 import com.github.hechtcarmel.jetbrainsdebuggermcpplugin.tools.ToolRegistry
 import com.github.hechtcarmel.jetbrainsdebuggermcpplugin.tools.models.DebugSessionStatus
+import com.github.hechtcarmel.jetbrainsdebuggermcpplugin.tools.models.ConsoleOutputResult
 import com.github.hechtcarmel.jetbrainsdebuggermcpplugin.tools.models.StackTraceResult
 import com.github.hechtcarmel.jetbrainsdebuggermcpplugin.tools.models.VariablesResult
 import com.github.hechtcarmel.jetbrainsdebuggermcpplugin.tools.models.WaitForPauseResult
@@ -37,6 +38,7 @@ class OutputSchemaFidelityTest {
     private companion object {
         /** Tool name -> the model that tool's `createJsonResult` serializes. */
         val SCHEMA_OWNERS: Map<String, SerialDescriptor> = mapOf(
+            "get_console_output" to serializer<ConsoleOutputResult>().descriptor,
             "get_variables" to serializer<VariablesResult>().descriptor,
             "get_stack_trace" to serializer<StackTraceResult>().descriptor,
             "get_debug_session_status" to serializer<DebugSessionStatus>().descriptor,

@@ -89,6 +89,42 @@ Get comprehensive session state in a single call. **Use this as the first inspec
 
 ---
 
+### `get_console_output`
+
+Reads the selected debug session's retained console text while it runs or is paused. This includes debugger-generated logpoint results, not just process stdout/stderr. It does not evaluate expressions, send console input, change focus, pause the debuggee, clear output, or unpause console rendering.
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `project_path` | string | No | | Required when multiple projects are open |
+| `session_id` | string | No | Current/only session | ID from `list_debug_sessions` |
+| `lines` | integer | No | 100 | Latest lines to select, 1–1000 |
+| `offset` | integer | No | 0 | Skip this many newest retained lines to page backward |
+| `max_chars` | integer | No | 20000 | Maximum UTF-16 characters returned, 1–100000; oversized pages keep their end |
+
+Example arguments: `{"lines":100,"offset":0}`. To read the preceding page, use `{"lines":100,"offset":100}` against an unchanged console buffer.
+
+```json
+{
+  "sessionId": "session-id",
+  "output": "TRACE i=3\nTRACE i=4\n",
+  "totalLines": 5,
+  "startLine": 4,
+  "endLine": 5,
+  "hasMore": true,
+  "truncated": false,
+  "hasDeferredOutput": false,
+  "outputPaused": false
+}
+```
+
+`output` keeps its original order and line separators. `startLine`/`endLine` are 1-based within the **currently retained** console buffer, or 0 for empty output. A trailing newline does not add an artificial empty line. `hasMore` means older text exists before this page; `truncated` means the character cap removed a prefix, possibly within a line. Empty consoles and offsets beyond their history return empty output successfully.
+
+Console rendering is asynchronous. `hasDeferredOutput` reports text still queued in the IDE; read again later to include it. `outputPaused` reports the user's console rendering setting, which reading leaves unchanged. Clearing the console and the IDE's cyclic output buffer can remove history, so these line numbers and offsets are **not durable polling cursors**, and pages can shift while output grows.
+
+Standard text consoles and language-console output history are supported. Language-console **unsubmitted input is excluded**. For duplex consoles, the primary console is read regardless of which view is selected. A console without accessible text returns an explicit error. Only sessions resolvable by `list_debug_sessions` are supported; plain Run configurations, terminals, and sessions already removed from the debugger manager are outside this tool's scope. No separate log store is created.
+
+---
+
 ## Breakpoints
 
 ### `list_breakpoints`

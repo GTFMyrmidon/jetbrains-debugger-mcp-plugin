@@ -16,6 +16,7 @@ import com.github.hechtcarmel.jetbrainsdebuggermcpplugin.tools.navigation.GetSou
 import com.github.hechtcarmel.jetbrainsdebuggermcpplugin.tools.runconfig.ListRunConfigurationsTool
 import com.github.hechtcarmel.jetbrainsdebuggermcpplugin.tools.runconfig.RunConfigurationTool
 import com.github.hechtcarmel.jetbrainsdebuggermcpplugin.tools.session.GetDebugSessionStatusTool
+import com.github.hechtcarmel.jetbrainsdebuggermcpplugin.tools.session.GetConsoleOutputTool
 import com.github.hechtcarmel.jetbrainsdebuggermcpplugin.tools.session.ListDebugSessionsTool
 import com.github.hechtcarmel.jetbrainsdebuggermcpplugin.tools.session.StartDebugSessionTool
 import com.github.hechtcarmel.jetbrainsdebuggermcpplugin.tools.session.StopDebugSessionTool
@@ -53,6 +54,7 @@ class ToolRegistry {
         register(StartDebugSessionTool())
         register(StopDebugSessionTool())
         register(GetDebugSessionStatusTool())
+        register(GetConsoleOutputTool())
 
         // Breakpoint Tools (P0)
         register(ListBreakpointsTool())

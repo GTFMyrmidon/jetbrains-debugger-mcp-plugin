@@ -1,7 +1,7 @@
 # MCP tool manifest — golden snapshot
 # Snapshot of the SDK Tool as serialized to clients, not of the authored schema.
 # Regenerate: ./gradlew test --tests "*ToolManifestContractTest" -Dcontract.update=true
-# tools: 24
+# tools: 25
 
 ## evaluate_expression
 description:
@@ -88,6 +88,108 @@ inputSchema:
   }
 outputSchema:
   <none>
+
+## get_console_output
+description:
+  Reads retained text from a debug session's console, including logpoint results and stdout/stderr rendered there. Works while running or paused, without evaluating code or changing execution.
+  Returns the last lines by default; offset skips that many newest lines to page backward. Line numbers are 1-based within the console's currently retained buffer, not a durable cursor: clearing or the IDE's cyclic buffer can remove older output. Output is also capped by max_chars, keeping the end of the selected page when truncated.
+  hasDeferredOutput means the IDE still has text waiting to render; read again later for that text. Reading does not unpause console output. Language consoles use output history, never the unsubmitted input editor; duplex consoles use their primary console. Consoles without an accessible text history return an error. Only debug sessions are supported, not plain Run configurations or terminals.
+annotations:
+  {
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": true,
+    "title": "Get Console Output"
+  }
+inputSchema:
+  {
+    "properties": {
+      "lines": {
+        "default": 100,
+        "description": "Maximum number of console lines to return, selecting the newest lines by default.",
+        "maximum": 1000,
+        "minimum": 1,
+        "type": "integer"
+      },
+      "max_chars": {
+        "default": 20000,
+        "description": "Maximum UTF-16 characters returned. Oversized pages keep their end and report truncated=true.",
+        "maximum": 100000,
+        "minimum": 1,
+        "type": "integer"
+      },
+      "offset": {
+        "default": 0,
+        "description": "Number of newest lines to skip before selecting the page. Relative to the retained buffer at the time of this call.",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "project_path": {
+        "description": "Absolute path to the project root. Required when multiple projects are open, optional otherwise.",
+        "type": "string"
+      },
+      "session_id": {
+        "description": "Debug session ID. Uses current session if omitted.",
+        "type": "string"
+      }
+    },
+    "required": [],
+    "type": "object"
+  }
+outputSchema:
+  {
+    "properties": {
+      "endLine": {
+        "description": "Last returned line, 1-based; 0 when no text is returned.",
+        "type": "integer"
+      },
+      "hasDeferredOutput": {
+        "description": "The console has additional output waiting to render.",
+        "type": "boolean"
+      },
+      "hasMore": {
+        "description": "More text exists before this page, including a truncated line prefix.",
+        "type": "boolean"
+      },
+      "output": {
+        "description": "Retained console text in its original order, including line separators.",
+        "type": "string"
+      },
+      "outputPaused": {
+        "description": "The console's output rendering is paused by the IDE/user.",
+        "type": "boolean"
+      },
+      "sessionId": {
+        "description": "Debug session ID.",
+        "type": "string"
+      },
+      "startLine": {
+        "description": "First returned line, 1-based; 0 when no text is returned. It may be partial when truncated.",
+        "type": "integer"
+      },
+      "totalLines": {
+        "description": "Number of retained lines; a trailing newline does not add an empty line.",
+        "type": "integer"
+      },
+      "truncated": {
+        "description": "The character limit removed a prefix of the selected page.",
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "sessionId",
+      "output",
+      "totalLines",
+      "startLine",
+      "endLine",
+      "hasMore",
+      "truncated",
+      "hasDeferredOutput",
+      "outputPaused"
+    ],
+    "type": "object"
+  }
 
 ## get_debug_session_status
 description:

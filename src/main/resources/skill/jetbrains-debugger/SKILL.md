@@ -3,7 +3,7 @@ name: jetbrains-debugger
 description: >-
   Guide for using JetBrains IDE Debugger MCP tools to programmatically debug applications.
   TRIGGER when ANY of these MCP tools are available: list_run_configurations, execute_run_configuration,
-  start_debug_session, stop_debug_session, get_debug_session_status, list_debug_sessions,
+  start_debug_session, stop_debug_session, get_debug_session_status, get_console_output, list_debug_sessions,
   set_breakpoint, remove_breakpoint, list_breakpoints, resume_execution, pause_execution,
   step_over, step_into, step_out, run_to_line, jump_to_line, wait_for_pause, get_stack_trace, select_stack_frame,
   list_threads, get_variables, set_variable, get_source_context, evaluate_expression.
@@ -96,7 +96,7 @@ Use these tools to **actually debug** applications in a JetBrains IDE rather tha
    Example: log_message: "Entering process() with id={id}, count={items.size()}"
 2. start_debug_session
 3. resume_execution
-4. Check IDE console output for trace log -- execution never pauses
+4. get_console_output -- read the retained trace log while execution runs; retry later if hasDeferredOutput is true
 ```
 
 ### Pattern: Inspect a Different Stack Frame
@@ -164,6 +164,7 @@ These use native debuggers (LLDB/GDB) with restrictions:
 | `start_debug_session` | Start debugging | No |
 | `stop_debug_session` | End debugging | No |
 | `list_debug_sessions` | See active sessions | No |
+| `get_console_output` | Read logpoints and retained console text; offset pages backward, max_chars bounds output | No |
 | `get_debug_session_status` | **Primary inspector** -- variables, stack, source, location | No (but most useful when paused) |
 | `set_breakpoint` | Set line breakpoint (with optional condition/log) | No |
 | `remove_breakpoint` | Remove a breakpoint | No |
