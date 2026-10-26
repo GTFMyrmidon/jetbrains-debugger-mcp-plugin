@@ -7,7 +7,7 @@ import com.intellij.execution.console.LanguageConsoleImpl
 import com.intellij.execution.filters.TextConsoleBuilderFactory
 import com.intellij.execution.ui.ConsoleView
 import com.intellij.execution.ui.ConsoleViewContentType
-import com.intellij.lang.PlainTextLanguage
+import com.intellij.openapi.fileTypes.PlainTextLanguage
 import com.intellij.openapi.editor.EditorFactory
 import com.intellij.openapi.util.Disposer
 import com.intellij.testFramework.PlatformTestUtil

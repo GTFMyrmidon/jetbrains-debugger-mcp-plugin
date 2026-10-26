@@ -6,7 +6,7 @@
 
 ### Added
 
-- **`get_console_output` tool** ([#80](https://github.com/hechtcarmel/jetbrains-debugger-mcp-plugin/issues/80)) — Reads logpoint results and retained debug-console output while a session runs or is paused. Supports bounded tail pages, backward pagination, character limits and explicit deferred/paused-output flags. Reads language-console history without exposing unsubmitted input; no separate log store or changes to execution state. Prepared for 5.2.0; not yet released.
+- **`get_console_output` tool** ([#80](https://github.com/hechtcarmel/jetbrains-debugger-mcp-plugin/issues/80)) — Reads logpoint results and retained debug-console output while a session runs or is paused. Supports bounded tail pages, backward pagination, character limits and explicit deferred/paused-output flags. Reads language-console history without exposing unsubmitted input; no separate log store or changes to execution state.
 
 ## [5.1.0] - 2026-09-24
 
