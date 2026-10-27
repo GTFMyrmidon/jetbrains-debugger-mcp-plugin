@@ -59,7 +59,34 @@ class ToolArgumentBoundaryTest : McpHttpTestCase() {
         assertEquals("Session not found: bogus", errorText(callTool("resume_execution", """{"session_id":"bogus"}""")))
     }
 
+    fun `test jump_to_line validates its arguments before looking for a session`() {
+        assertEquals("Missing required parameter: file_path", errorText(callTool("jump_to_line", "{}")))
+        assertEquals(
+            "Missing required parameter: line",
+            errorText(callTool("jump_to_line", """{"file_path":"/nope/app.py"}"""))
+        )
+        assertEquals(
+            "Invalid value for parameter: line (must be >= 1)",
+            errorText(callTool("jump_to_line", """{"file_path":"/nope/app.py","line":0}"""))
+        )
+        assertEquals(
+            "No active debug session",
+            errorText(callTool("jump_to_line", """{"file_path":"/nope/app.py","line":3}"""))
+        )
+    }
+
     // ── Wrong JSON kind ─────────────────────────────────────────────────────────────────
+
+    fun `test get_console_output validates bounded pagination and session errors over HTTP`() {
+        assertEquals("No active debug session", errorText(callTool("get_console_output", "{}")))
+        assertEquals("Session not found: bogus", errorText(callTool("get_console_output", """{"session_id":"bogus"}""")))
+        for (arguments in listOf("""{"lines":0}""", """{"lines":1001}""")) {
+            assertEquals("Invalid value for parameter: lines (must be between 1 and 1000)", errorText(callTool("get_console_output", arguments)))
+        }
+        assertEquals("Invalid value for parameter: offset (must be >= 0)", errorText(callTool("get_console_output", """{"offset":-1}""")))
+        assertEquals("Invalid type for parameter: lines (expected integer)", errorText(callTool("get_console_output", """{"lines":"5"}""")))
+        assertEquals("Invalid value for parameter: max_chars (must be between 1 and 100000)", errorText(callTool("get_console_output", """{"max_chars":100001}""")))
+    }
 
     fun `test a stringified integer is a type error not a missing parameter`() {
         assertEquals(

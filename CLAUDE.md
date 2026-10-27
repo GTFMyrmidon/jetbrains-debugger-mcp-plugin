@@ -30,6 +30,7 @@ IMPORTANT: When debugging, prefer using jetbrains-debugger MCP tools to interact
 | `start_debug_session` | Start a new debug session |
 | `stop_debug_session` | Stop a debug session |
 | `get_debug_session_status` | Get comprehensive session state (variables, stack, source) |
+| `get_console_output` | Read retained console text and logpoint results while running or paused |
 
 ### Breakpoints
 | Tool | Description |
@@ -47,6 +48,7 @@ IMPORTANT: When debugging, prefer using jetbrains-debugger MCP tools to interact
 | `step_into` | Step into function call |
 | `step_out` | Step out of current function |
 | `run_to_line` | Run until specific line is reached |
+| `jump_to_line` | Move the paused execution point to another line without running the code in between (Python/pydevd only) |
 | `wait_for_pause` | Wait for session to pause (breakpoint, exception, manual). Returns full status. |
 
 ### Inspection
@@ -154,7 +156,7 @@ If omitted with multiple projects, tools return an error listing available proje
 2. set suspend_policy to "none" for all breakpoints
 3. start_debug_session
 4. resume_execution
-5. Check IDE console for trace output
+5. get_console_output for retained trace output (read again later if hasDeferredOutput is true)
 ```
 
 ## Error Handling
@@ -226,15 +228,21 @@ These languages use native debuggers (LLDB/GDB) with some limitations:
 Run it before pushing. There is no separate "fast tier": the suite is small enough that splitting
 it would cost more than it saves.
 
+The live Python suite needs a CPython 3 interpreter: `MCP_LIVE_PYTHON=/path/to/python3`, or `python3`
+on the `PATH`. CI pins 3.12 with `actions/setup-python`. The Python plugin it drives (PythonCore) is a
+test-only dependency (`platformTestPlugins` in `gradle.properties`, pinned to the IDE build); keep it
+in step with `platformVersion`.
+
 ### How the suite is organised
 
 | Layer | Location | What it protects |
 |-------|----------|------------------|
-| **Golden contracts** | `contract/` | The client-facing surface: 23 tool schemas, 27 result-model wire shapes |
+| **Golden contracts** | `contract/` | The client-facing surface: 25 tool schemas, 28 result-model wire shapes |
 | **SDK assumptions** | `mcp/McpSdkAssumptionsTest` | What this plugin relies on the MCP SDK doing — fails on an SDK bump, not a refactor |
 | **Transport conformance** | `server/transport/` | Every route, status code, header, Origin decision and SSE frame, over real HTTP |
 | **Tool behaviour** | `tools/**/*BehaviorTest` | What a tool actually does to IDE state |
 | **Live debuggee** | `livedebug/LiveDebugSessionTest` | The paused-state success paths against a real JVM: breakpoint hit, variables, evaluation, stepping, stack |
+| **Live Python debuggee** | `livedebug/LivePythonDebugSessionTest` | `jump_to_line` against a real pydevd session: backward, forward and in-function jumps, CPython's and pydevd's refusals, wrong file, not paused |
 | **Unit** | everything else | Pure logic — log-message transforms, safety analysis, value presentation |
 
 ### Golden contract files
@@ -278,20 +286,30 @@ Write fixture files to disk under `project.basePath`, not via `myFixture.addFile
 
 Stated plainly so nobody mistakes the suite for more than it is:
 
-- **One live debug session, one language, one scenario.** `livedebug/LiveDebugSessionTest`
+- **Two live debuggers, one scenario each.** `livedebug/LiveDebugSessionTest`
   compiles a small Java program, launches it suspended under JDWP, attaches through a `Remote`
   run configuration started by `start_debug_session`, and drives the success paths of
   `set_breakpoint`, `wait_for_pause` (including breakpoint attribution and the embedded
   variables), `get_variables`, `evaluate_expression`, `step_over`, `get_stack_trace` and
-  `stop_debug_session` against the genuinely paused JVM. Still uncovered live: `step_into`,
-  `step_out`, `run_to_line`, `pause_execution`, `resume_execution`, `set_variable`,
-  `list_threads`, `select_stack_frame`, `get_debug_session_status`, conditional/log breakpoints
-  actually firing, and every non-Java debugger.
+  `stop_debug_session` against the genuinely paused JVM, plus `jump_to_line`'s refusal there and real non-suspending logpoints read through `get_console_output`.
+  `livedebug/LivePythonDebugSessionTest` runs a Python script under pydevd through an ordinary
+  Python run configuration and covers `jump_to_line` end to end — on one CPython (3.12, where
+  PyCharm uses `sys.monitoring`), one thread, no `with`/`finally`/generator frames. Still uncovered
+  live: `step_into`, `step_out`, `run_to_line`, `pause_execution`, `set_variable`,
+  `list_threads`, `select_stack_frame`, conditional breakpoints actually firing, and every
+  debugger other than the JVM's and pydevd.
+- **`jump_to_line` works on pydevd only.** The platform has no language-agnostic
+  "set next statement" API, and the tool reaches `PyDebugProcess.startSetNextStatement`
+  reflectively. PyCharm's debugpy backend (the default for local Python 3.9+ interpreters since
+  2026.2), CLion/RustRover and Rider all have the feature in closed-source code and get an error
+  naming their debug process. The IDE computes the target's function name from PSI, so jumps
+  inside class bodies and generator expressions are refused even where CPython would allow them.
 - **`BreakpointHitInfo.hitCount` is always 0.** The language-agnostic `XBreakpoint` API exposes
   no hit-count accessor; hit counts live in language-specific debugger implementations.
 - **Pause-reason detection is a file/line heuristic.** It matches the top frame's position against
   enabled, unmuted line breakpoints, so it returns only `breakpoint` or `step`, never `exception`
-  or `pause`, though the output schema advertises all four.
+  or `pause`, though the output schema advertises all four. A `jump_to_line` onto a line that has
+  a breakpoint is therefore reported as that breakpoint being hit.
 - **`additionalProperties: false` is gone from every input schema.** The MCP SDK's `ToolSchema`
   cannot express it, so unknown arguments are no longer rejected. `McpSdkAssumptionsTest` fails if
   a future SDK gains the ability, which is the signal to restore it.
@@ -312,6 +330,10 @@ Stated plainly so nobody mistakes the suite for more than it is:
   rather than by driving a real tool window.
 
 ---
+
+## Developer Guide: Console Output
+
+`get_console_output` reads the IDE-owned console document on the EDT using public APIs. It reads language-console history (not pending REPL input), unwraps console wrappers, and consistently selects the primary duplex console. It returns bounded pages without copying the whole document, installing output listeners, forcing a flush, retaining its own history, or changing the user's paused-output setting. Deferred output is reported explicitly. Line numbers are relative to the retained/cyclic buffer, not durable cursors. The live JVM test covers actual logpoints; other debugger backends are not live-tested for this tool.
 
 ## Developer Guide: MCP Structured Outputs
 

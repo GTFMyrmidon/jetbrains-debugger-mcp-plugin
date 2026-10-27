@@ -50,6 +50,7 @@ class ThreadingConventionsTest {
         "AbstractMcpTool.kt",
         "session/StartDebugSessionTool.kt",
         "session/StopDebugSessionTool.kt",
+        "session/GetConsoleOutputTool.kt",
         "stack/SelectStackFrameTool.kt",
         "evaluation/EvaluateTool.kt",
         "util/EvaluatorUtils.kt"

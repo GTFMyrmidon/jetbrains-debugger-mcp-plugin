@@ -4,11 +4,13 @@ import com.github.hechtcarmel.jetbrainsdebuggermcpplugin.mcp.runWithIdeModality
 import com.github.hechtcarmel.jetbrainsdebuggermcpplugin.tools.McpTool
 import com.github.hechtcarmel.jetbrainsdebuggermcpplugin.tools.breakpoint.SetBreakpointTool
 import com.github.hechtcarmel.jetbrainsdebuggermcpplugin.tools.evaluation.EvaluateTool
+import com.github.hechtcarmel.jetbrainsdebuggermcpplugin.tools.execution.JumpToLineTool
 import com.github.hechtcarmel.jetbrainsdebuggermcpplugin.tools.execution.PauseTool
 import com.github.hechtcarmel.jetbrainsdebuggermcpplugin.tools.execution.ResumeTool
 import com.github.hechtcarmel.jetbrainsdebuggermcpplugin.tools.execution.StepOverTool
 import com.github.hechtcarmel.jetbrainsdebuggermcpplugin.tools.execution.WaitForPauseTool
 import com.github.hechtcarmel.jetbrainsdebuggermcpplugin.tools.session.ListDebugSessionsTool
+import com.github.hechtcarmel.jetbrainsdebuggermcpplugin.tools.session.GetConsoleOutputTool
 import com.github.hechtcarmel.jetbrainsdebuggermcpplugin.tools.session.StartDebugSessionTool
 import com.github.hechtcarmel.jetbrainsdebuggermcpplugin.tools.session.StopDebugSessionTool
 import com.github.hechtcarmel.jetbrainsdebuggermcpplugin.tools.stack.GetStackTraceTool
@@ -39,7 +41,8 @@ import java.util.concurrent.TimeUnit
 /**
  * The one test that runs the debugger tools against a **real paused JVM** — the success paths of
  * `set_breakpoint` → `start_debug_session` → `wait_for_pause` → `get_variables` →
- * `evaluate_expression` → `step_over` → `get_stack_trace` → `stop_debug_session`, end to end.
+ * `evaluate_expression` → `step_over` → `get_stack_trace` → `stop_debug_session`, end to end, plus
+ * `jump_to_line`'s refusal on a debugger that cannot move the execution point.
  *
  * ## Infrastructure this test stands up
  *
@@ -80,7 +83,7 @@ class LiveDebugSessionTest : JavaCodeInsightFixtureTestCase() {
                 public static void main(String[] args) throws Exception {
                     int total = 0;
                     for (int i = 0; i < 5; i++) {
-                        total += i;
+                        total += i; // LOGPOINT
                     }
                     int doubled = total * 2; // BREAKPOINT
                     System.out.println(doubled); // STEP_TARGET
@@ -131,6 +134,15 @@ class LiveDebugSessionTest : JavaCodeInsightFixtureTestCase() {
         assertEquals("set", setPayload.str("status"))
         val breakpointId = setPayload.str("breakpointId")
 
+        // Debugger-generated output: a Remote attach does not forward this JVM's stdout to
+        // the IDE console, so a ProcessHandler-only implementation cannot pass this check.
+        structured(runTool(SetBreakpointTool(), buildJsonObject {
+            put("file_path", sourcePath)
+            put("line", markerLine("// LOGPOINT"))
+            put("suspend_policy", "none")
+            put("log_message", "TRACE i={i}")
+        }))
+
         structured(runTool(StartDebugSessionTool(), buildJsonObject {
             put("configuration_name", configName)
         }))
@@ -147,6 +159,11 @@ class LiveDebugSessionTest : JavaCodeInsightFixtureTestCase() {
             location.str("file").endsWith("LiveDebugTarget.java")
         )
         assertEquals(BREAKPOINT_LINE, location["line"]!!.jsonPrimitive.int)
+
+        waitUntil("logpoint output to render in the debug console") {
+            val output = structured(runTool(GetConsoleOutputTool(), buildJsonObject {})).str("output")
+            (0..4).all { output.contains("TRACE i=$it") }
+        }
 
         val hit = paused["breakpointHit"]!!.jsonObject
         assertEquals(
@@ -173,7 +190,24 @@ class LiveDebugSessionTest : JavaCodeInsightFixtureTestCase() {
         assertEquals("Evaluation must not report an error: $evaluation", JsonNull, evaluation["error"])
         assertEquals("11", evaluation.str("value"))
 
+        // ── jump_to_line is refused: the JVM cannot move its execution point ────────────
+        val jump = runTool(JumpToLineTool(), buildJsonObject {
+            put("file_path", sourcePath)
+            put("line", STEP_TARGET_LINE)
+        })
+        assertTrue("jump_to_line must fail on the JVM debugger, got: ${resultText(jump)}", jump.isError == true)
+        assertTrue(
+            "The refusal must name the JVM debug process, got: ${resultText(jump)}",
+            resultText(jump).startsWith("Jump to line is not supported by this debugger (") &&
+                resultText(jump).contains("JavaDebugProcess")
+        )
+        assertFalse(
+            "The debugpy hint is for Python code only, got: ${resultText(jump)}",
+            resultText(jump).contains("debugpy")
+        )
+
         // ── step_over advances exactly one line ─────────────────────────────────────────
+        // (also proves the refused jump left the session paused where it was)
         structured(runTool(StepOverTool(), buildJsonObject {}))
         val afterStep = awaitPauseAtLine(STEP_TARGET_LINE)
         assertEquals("step", afterStep.str("pausedReason"))
@@ -230,6 +264,10 @@ class LiveDebugSessionTest : JavaCodeInsightFixtureTestCase() {
         // Registration of an attached session is asynchronous; poll through the tool layer (the
         // same machinery a client uses, and runTool pumps the EDT the registration needs).
         val sessionId = awaitRunningSessionId()
+
+        val console = structured(runTool(GetConsoleOutputTool(), buildJsonObject { put("session_id", sessionId) }))
+        assertEquals(sessionId, console.str("sessionId"))
+        assertEquals("Reading a console must leave the JVM running", "running", sessionState(sessionId))
 
         // ── pause_execution suspends a free-running program ────────────────────────────
         // No session_id on purpose: a running session that has never paused is not the IDE's

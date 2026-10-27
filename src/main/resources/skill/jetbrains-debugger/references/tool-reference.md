@@ -89,6 +89,42 @@ Get comprehensive session state in a single call. **Use this as the first inspec
 
 ---
 
+### `get_console_output`
+
+Reads the selected debug session's retained console text while it runs or is paused. This includes debugger-generated logpoint results, not just process stdout/stderr. It does not evaluate expressions, send console input, change focus, pause the debuggee, clear output, or unpause console rendering.
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `project_path` | string | No | | Required when multiple projects are open |
+| `session_id` | string | No | Current/only session | ID from `list_debug_sessions` |
+| `lines` | integer | No | 100 | Latest lines to select, 1–1000 |
+| `offset` | integer | No | 0 | Skip this many newest retained lines to page backward |
+| `max_chars` | integer | No | 20000 | Maximum UTF-16 characters returned, 1–100000; oversized pages keep their end |
+
+Example arguments: `{"lines":100,"offset":0}`. To read the preceding page, use `{"lines":100,"offset":100}` against an unchanged console buffer.
+
+```json
+{
+  "sessionId": "session-id",
+  "output": "TRACE i=3\nTRACE i=4\n",
+  "totalLines": 5,
+  "startLine": 4,
+  "endLine": 5,
+  "hasMore": true,
+  "truncated": false,
+  "hasDeferredOutput": false,
+  "outputPaused": false
+}
+```
+
+`output` keeps its original order and line separators. `startLine`/`endLine` are 1-based within the **currently retained** console buffer, or 0 for empty output. A trailing newline does not add an artificial empty line. `hasMore` means older text exists before this page; `truncated` means the character cap removed a prefix, possibly within a line. Empty consoles and offsets beyond their history return empty output successfully.
+
+Console rendering is asynchronous. `hasDeferredOutput` reports text still queued in the IDE; read again later to include it. `outputPaused` reports the user's console rendering setting, which reading leaves unchanged. Clearing the console and the IDE's cyclic output buffer can remove history, so these line numbers and offsets are **not durable polling cursors**, and pages can shift while output grows.
+
+Standard text consoles and language-console output history are supported. Language-console **unsubmitted input is excluded**. For duplex consoles, the primary console is read regardless of which view is selected. A console without accessible text returns an explicit error. Only sessions resolvable by `list_debug_sessions` are supported; plain Run configurations, terminals, and sessions already removed from the debugger manager are outside this tool's scope. No separate log store is created.
+
+---
+
 ## Breakpoints
 
 ### `list_breakpoints`
@@ -206,6 +242,22 @@ Continue execution until a specific line is reached.
 | `project_path` | string | No | Project path |
 
 **Requires:** Session paused. **New state:** "running" (will pause at target line)
+
+### `jump_to_line`
+Move the paused execution point to another line **without running the code in between** (Set Next Statement / Jump to Cursor). Skipped lines never execute; jumping to an earlier line executes it again. Use it to re-run a block after `set_variable`, or to skip a crashing or side-effecting call, without restarting.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `session_id` | string | No | Session ID |
+| `file_path` | string | **Yes** | Absolute path of the file of the current execution point |
+| `line` | integer | **Yes** | 1-based target line in the current function (min: 1) |
+| `project_path` | string | No | Project path |
+
+**Requires:** Session paused. **New state:** "paused" (at the target line; the tool returns once the debugger reports the new position)
+
+**Supported debuggers:** Python sessions on the pydevd backend. Any other debugger — Java/Kotlin (the JVM cannot move the execution point), JavaScript, PHP, Go, native, and Python's debugpy backend — returns an error naming the debugger.
+
+**Limits:** Only within the current function of the paused thread (its top frame, whatever `select_stack_frame` selected) and only in that file. Python refuses jumps into a `for` loop body or an `except` block, and reports why. Right after `step_out` or a step past a `return` the thread is not at the start of a line and the jump is refused — `step_over` once, then retry. A blank or comment line lands on the next line with code. Skipped code leaves variables stale or unassigned (Python 3.12+ sets unassigned locals to `None`); skipped `finally` blocks and `with` exits do not run; jumping back re-runs side effects.
 
 ### `wait_for_pause`
 Wait for a debug session to pause (breakpoint hit, exception, or manual pause). Returns the full session status when paused, equivalent to calling `get_debug_session_status`. Use after `resume_execution`, `start_debug_session`, or any execution control tool to avoid manual polling.

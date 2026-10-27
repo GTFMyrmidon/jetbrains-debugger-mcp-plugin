@@ -4,6 +4,7 @@ import com.github.hechtcarmel.jetbrainsdebuggermcpplugin.tools.breakpoint.ListBr
 import com.github.hechtcarmel.jetbrainsdebuggermcpplugin.tools.breakpoint.RemoveBreakpointTool
 import com.github.hechtcarmel.jetbrainsdebuggermcpplugin.tools.breakpoint.SetBreakpointTool
 import com.github.hechtcarmel.jetbrainsdebuggermcpplugin.tools.evaluation.EvaluateTool
+import com.github.hechtcarmel.jetbrainsdebuggermcpplugin.tools.execution.JumpToLineTool
 import com.github.hechtcarmel.jetbrainsdebuggermcpplugin.tools.execution.PauseTool
 import com.github.hechtcarmel.jetbrainsdebuggermcpplugin.tools.execution.ResumeTool
 import com.github.hechtcarmel.jetbrainsdebuggermcpplugin.tools.execution.RunToLineTool
@@ -15,6 +16,7 @@ import com.github.hechtcarmel.jetbrainsdebuggermcpplugin.tools.navigation.GetSou
 import com.github.hechtcarmel.jetbrainsdebuggermcpplugin.tools.runconfig.ListRunConfigurationsTool
 import com.github.hechtcarmel.jetbrainsdebuggermcpplugin.tools.runconfig.RunConfigurationTool
 import com.github.hechtcarmel.jetbrainsdebuggermcpplugin.tools.session.GetDebugSessionStatusTool
+import com.github.hechtcarmel.jetbrainsdebuggermcpplugin.tools.session.GetConsoleOutputTool
 import com.github.hechtcarmel.jetbrainsdebuggermcpplugin.tools.session.ListDebugSessionsTool
 import com.github.hechtcarmel.jetbrainsdebuggermcpplugin.tools.session.StartDebugSessionTool
 import com.github.hechtcarmel.jetbrainsdebuggermcpplugin.tools.session.StopDebugSessionTool
@@ -52,6 +54,7 @@ class ToolRegistry {
         register(StartDebugSessionTool())
         register(StopDebugSessionTool())
         register(GetDebugSessionStatusTool())
+        register(GetConsoleOutputTool())
 
         // Breakpoint Tools (P0)
         register(ListBreakpointsTool())
@@ -67,6 +70,7 @@ class ToolRegistry {
         // Execution Control Tools (P1)
         register(StepOutTool())
         register(RunToLineTool())
+        register(JumpToLineTool())
         register(WaitForPauseTool())
 
         // Stack Frame Tools (P0)

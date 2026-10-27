@@ -22,6 +22,7 @@ Set breakpoints, step through code, inspect variables, and evaluate expressionsâ
     <li><b>Line Breakpoints</b> - Set, remove, and list breakpoints at any location</li>
     <li><b>Conditional Breakpoints</b> - Add conditions that must be true to pause execution</li>
     <li><b>Tracepoints</b> - Log messages without pausing execution</li>
+    <li><b>Console Output</b> - Read logpoint results and retained console text with bounded pagination</li>
 </ul>
 
 <h3>Execution Control</h3>
@@ -29,6 +30,7 @@ Set breakpoints, step through code, inspect variables, and evaluate expressionsâ
     <li><b>Step Over/Into/Out</b> - Navigate through code line by line</li>
     <li><b>Resume & Pause</b> - Control execution flow</li>
     <li><b>Run to Line</b> - Continue execution until a specific line</li>
+    <li><b>Jump to Line</b> - Move the execution point without running the code in between (Python/pydevd)</li>
 </ul>
 
 <h3>Variable Inspection</h3>

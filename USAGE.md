@@ -1,6 +1,6 @@
 # Debugger MCP Server - Tool Reference
 
-This document provides detailed documentation for all 22 MCP tools available in the JetBrains Debugger MCP Server plugin.
+This document provides detailed documentation for all 25 MCP tools available in the JetBrains Debugger MCP Server plugin.
 
 ## Tool Overview
 
@@ -13,7 +13,7 @@ Tools are organized into categories based on functionality:
 | `list_run_configurations` | List all available run configurations |
 | `execute_run_configuration` | Execute a run configuration in run or debug mode |
 
-### Debug Session Tools (4)
+### Debug Session Tools (5)
 
 | Tool | Description |
 |------|-------------|
@@ -21,6 +21,7 @@ Tools are organized into categories based on functionality:
 | `start_debug_session` | Start a new debug session |
 | `stop_debug_session` | Stop a debug session |
 | `get_debug_session_status` | Get comprehensive session status |
+| `get_console_output` | Read retained console text and logpoint results |
 
 ### Breakpoint Tools (3)
 
@@ -30,7 +31,7 @@ Tools are organized into categories based on functionality:
 | `set_breakpoint` | Set a line breakpoint |
 | `remove_breakpoint` | Remove a breakpoint |
 
-### Execution Control Tools (6)
+### Execution Control Tools (8)
 
 | Tool | Description |
 |------|-------------|
@@ -40,6 +41,8 @@ Tools are organized into categories based on functionality:
 | `step_into` | Step into method call |
 | `step_out` | Step out of current method |
 | `run_to_line` | Run to specific line |
+| `jump_to_line` | Move the execution point without running the code in between |
+| `wait_for_pause` | Block until the session pauses and return its full status |
 
 ### Stack & Thread Tools (3)
 
@@ -81,6 +84,7 @@ Tools are organized into categories based on functionality:
   - [start_debug_session](#start_debug_session)
   - [stop_debug_session](#stop_debug_session)
   - [get_debug_session_status](#get_debug_session_status)
+  - [get_console_output](#get_console_output)
 - [Breakpoint Tools](#breakpoint-tools)
   - [list_breakpoints](#list_breakpoints)
   - [set_breakpoint](#set_breakpoint)
@@ -92,6 +96,7 @@ Tools are organized into categories based on functionality:
   - [step_into](#step_into)
   - [step_out](#step_out)
   - [run_to_line](#run_to_line)
+  - [jump_to_line](#jump_to_line)
 - [Stack & Thread Tools](#stack--thread-tools)
   - [get_stack_trace](#get_stack_trace)
   - [select_stack_frame](#select_stack_frame)
@@ -469,6 +474,42 @@ Gets comprehensive status of a debug session including variables, stack, and sou
   }
 }
 ```
+
+---
+
+### get_console_output
+
+Reads the selected debug session's retained console text while it runs or is paused. This includes debugger-generated logpoint results, not just process stdout/stderr. It does not evaluate expressions, send console input, change focus, pause the debuggee, clear output, or unpause console rendering.
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `project_path` | string | No | | Required when multiple projects are open |
+| `session_id` | string | No | Current/only session | ID from `list_debug_sessions` |
+| `lines` | integer | No | 100 | Latest lines to select, 1–1000 |
+| `offset` | integer | No | 0 | Skip this many newest retained lines to page backward |
+| `max_chars` | integer | No | 20000 | Maximum UTF-16 characters returned, 1–100000; oversized pages keep their end |
+
+Example arguments: `{"lines":100,"offset":0}`. To read the preceding page, use `{"lines":100,"offset":100}` against an unchanged console buffer.
+
+```json
+{
+  "sessionId": "session-id",
+  "output": "TRACE i=3\nTRACE i=4\n",
+  "totalLines": 5,
+  "startLine": 4,
+  "endLine": 5,
+  "hasMore": true,
+  "truncated": false,
+  "hasDeferredOutput": false,
+  "outputPaused": false
+}
+```
+
+`output` keeps its original order and line separators. `startLine`/`endLine` are 1-based within the **currently retained** console buffer, or 0 for empty output. A trailing newline does not add an artificial empty line. `hasMore` means older text exists before this page; `truncated` means the character cap removed a prefix, possibly within a line. Empty consoles and offsets beyond their history return empty output successfully.
+
+Console rendering is asynchronous. `hasDeferredOutput` reports text still queued in the IDE; read again later to include it. `outputPaused` reports the user's console rendering setting, which reading leaves unchanged. Clearing the console and the IDE's cyclic output buffer can remove history, so these line numbers and offsets are **not durable polling cursors**, and pages can shift while output grows.
+
+Standard text consoles and language-console output history are supported. Language-console **unsubmitted input is excluded**. For duplex consoles, the primary console is read regardless of which view is selected. A console without accessible text returns an explicit error. Only sessions resolvable by `list_debug_sessions` are supported; plain Run configurations, terminals, and sessions already removed from the debugger manager are outside this tool's scope. No separate log store is created.
 
 ---
 
@@ -912,6 +953,60 @@ Continues execution until the specified line is reached.
   "targetLine": 58,
   "message": "Running to UserService.java:58"
 }
+```
+
+### jump_to_line
+
+Moves the paused execution point to another line **without running the code in between** — PyCharm's "Jump to Cursor", Visual Studio's "Set Next Statement". Skipped lines never execute, and jumping to an earlier line executes it again. The session stays paused at the new line.
+
+**Use when:**
+- Re-running a block after correcting a value with `set_variable`
+- Skipping a call that crashes or has side effects, without restarting the session
+
+**Supported debuggers:** Python sessions on the pydevd backend. Other debuggers (Java/Kotlin, JavaScript, PHP, Go, native, Python's debugpy backend) return an error naming the debugger.
+
+**Limits:** Only within the current function of the paused thread (its top frame) and only in that file. Python refuses jumps into a `for` loop body or an `except` block. Right after `step_out` or a step past a `return` the thread is not at the start of a line, so the jump is refused until it steps once more. A blank or comment line lands on the next line with code. Skipped code leaves variables stale or unassigned (Python 3.12+ sets unassigned locals to `None`), skipped `finally` blocks and `with` exits do not run, and jumping back re-runs side effects.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `file_path` | string | Yes | Absolute path of the file of the current execution point |
+| `line` | integer | Yes | 1-based target line in the current function |
+| `session_id` | string | No | Session to move |
+| `project_path` | string | No | Project path |
+
+**Example Request:**
+
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "jump_to_line",
+    "arguments": {
+      "file_path": "/Users/dev/project/app/orders.py",
+      "line": 42
+    }
+  }
+}
+```
+
+**Example Response:**
+
+```json
+{
+  "sessionId": "0f8c2a61-5d8e-4f3b-9a57-2c1e7b4d9e10",
+  "action": "jump_to_line",
+  "status": "success",
+  "message": "Execution point moved to /Users/dev/project/app/orders.py:42. The skipped lines did not run.",
+  "newState": "paused"
+}
+```
+
+**Example Error (debugger refused the jump):**
+
+```
+Cannot jump to /Users/dev/project/app/orders.py:37: can't jump into the body of a for loop
 ```
 
 ---
