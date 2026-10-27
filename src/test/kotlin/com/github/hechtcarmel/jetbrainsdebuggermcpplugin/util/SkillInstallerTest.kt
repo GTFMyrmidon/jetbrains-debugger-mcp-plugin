@@ -65,12 +65,15 @@ class SkillInstallerTest {
 
         assertTrue(
             "Installed SKILL.md must carry a version stamp so on-disk copies have a staleness signal",
-            installed.startsWith("---\nversion: ${McpConstants.SERVER_VERSION}\n")
+            installed.startsWith("---\nversion: ${McpConstants.SERVER_VERSION}\n") ||
+                installed.startsWith("---\r\nversion: ${McpConstants.SERVER_VERSION}\r\n")
         )
         // The stamp is a pure insertion: everything else must be byte-identical to the resource.
         val original = resourceDir.resolve("SKILL.md").readText()
+        val isCrlf = original.startsWith("---\r\n")
+        val newline = if (isCrlf) "\r\n" else "\n"
         assertEquals(
-            original.replaceFirst("---\n", "---\nversion: ${McpConstants.SERVER_VERSION}\n"),
+            original.replaceFirst("---$newline", "---${newline}version: ${McpConstants.SERVER_VERSION}$newline"),
             installed
         )
     }
@@ -105,7 +108,8 @@ class SkillInstallerTest {
                 .bufferedReader().use { it.readText() }
             assertTrue(
                 "Zipped SKILL.md must carry the same version stamp as a directory install",
-                manifest.startsWith("---\nversion: ${McpConstants.SERVER_VERSION}\n")
+                manifest.startsWith("---\nversion: ${McpConstants.SERVER_VERSION}\n") ||
+                    manifest.startsWith("---\r\nversion: ${McpConstants.SERVER_VERSION}\r\n")
             )
         }
     }

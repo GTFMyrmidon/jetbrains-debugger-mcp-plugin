@@ -32,7 +32,9 @@ internal object GoldenFile {
         }
 
         val expected = readGolden(sourcePath, resourcePath)
-        if (expected == actual) return
+        val normalizedExpected = expected.replace("\r\n", "\n")
+        val normalizedActual = actual.replace("\r\n", "\n")
+        if (normalizedExpected == normalizedActual) return
 
         val actualFile = File("build/${File(sourcePath).name}.actual")
         actualFile.parentFile.mkdirs()

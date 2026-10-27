@@ -327,10 +327,13 @@ class LiveDebugSessionTest : JavaCodeInsightFixtureTestCase() {
      * (set in CI and required for the Gradle build anyway), the test JVM's own home as a fallback.
      * Using one home for both keeps the produced bytecode trivially runnable.
      */
+    private val javacBinaryName = if (com.intellij.openapi.util.SystemInfo.isWindows) "bin/javac.exe" else "bin/javac"
+    private val javaBinaryName = if (com.intellij.openapi.util.SystemInfo.isWindows) "bin/java.exe" else "bin/java"
+
     private val jdkHome: Path by lazy {
         listOfNotNull(System.getenv("JAVA_HOME"), System.getProperty("java.home"))
             .map { Path.of(it) }
-            .firstOrNull { Files.isExecutable(it.resolve("bin/javac")) }
+            .firstOrNull { Files.isExecutable(it.resolve(javacBinaryName)) }
             ?: throw AssertionError(
                 "No JDK with javac found — set JAVA_HOME to a full JDK " +
                     "(checked JAVA_HOME and java.home=${System.getProperty("java.home")})"
@@ -340,7 +343,7 @@ class LiveDebugSessionTest : JavaCodeInsightFixtureTestCase() {
     private fun compileDebuggee(sourcePath: String): Path {
         val outDir = Files.createTempDirectory("live-debug-classes").also { classesDir = it }
         val javac = ProcessBuilder(
-            jdkHome.resolve("bin/javac").toString(),
+            jdkHome.resolve(javacBinaryName).toString(),
             "-g", // local-variable tables — without them get_variables has nothing to read
             "-d", outDir.toString(),
             sourcePath,
@@ -353,7 +356,7 @@ class LiveDebugSessionTest : JavaCodeInsightFixtureTestCase() {
 
     /** Starts the debuggee suspended and returns the JDWP port the agent announces. */
     private fun launchDebuggee(classesDir: Path, mainClass: String): Int {
-        val javaBinary = jdkHome.resolve("bin/java")
+        val javaBinary = jdkHome.resolve(javaBinaryName)
         val process = ProcessBuilder(
             javaBinary.toString(),
             "-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=127.0.0.1:0",

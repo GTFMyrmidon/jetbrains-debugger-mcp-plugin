@@ -111,15 +111,17 @@ object SkillInstaller {
 
     private fun stampVersion(bytes: ByteArray): ByteArray {
         val text = bytes.toString(Charsets.UTF_8)
-        if (!text.startsWith("---\n")) return bytes
+        if (!text.startsWith("---\n") && !text.startsWith("---\r\n")) return bytes
 
-        val frontmatterEnd = text.indexOf("\n---", startIndex = 3)
+        val isCrlf = text.startsWith("---\r\n")
+        val newline = if (isCrlf) "\r\n" else "\n"
+        val frontmatterEnd = text.indexOf("$newline---", startIndex = 3)
         if (frontmatterEnd < 0 || text.substring(0, frontmatterEnd).contains(Regex("(?m)^version:"))) {
             return bytes
         }
 
         return text
-            .replaceFirst("---\n", "---\nversion: ${McpConstants.SERVER_VERSION}\n")
+            .replaceFirst("---$newline", "---${newline}version: ${McpConstants.SERVER_VERSION}$newline")
             .toByteArray(Charsets.UTF_8)
     }
 }

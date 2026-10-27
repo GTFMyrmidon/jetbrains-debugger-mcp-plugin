@@ -302,7 +302,12 @@ class LivePythonDebugSessionTest : JavaCodeInsightFixtureTestCase() {
 
     private val python: String by lazy {
         System.getenv("MCP_LIVE_PYTHON")?.takeIf { it.isNotBlank() }
-            ?: listOf("python3", "python").firstNotNullOfOrNull { PathEnvironmentVariableUtil.findInPath(it)?.path }
+            ?: (if (com.intellij.openapi.util.SystemInfo.isWindows) listOf("python.exe", "python3.exe", "python", "python3") else listOf("python3", "python"))
+                .firstNotNullOfOrNull { name ->
+                    PathEnvironmentVariableUtil.findInPath(name)?.path?.takeIf {
+                        !com.intellij.openapi.util.SystemInfo.isWindows || it.endsWith(".exe", ignoreCase = true)
+                    }
+                }
             ?: throw AssertionError(
                 "No CPython found for the live pydevd test — set MCP_LIVE_PYTHON to a python3 executable " +
                     "(CI does this with actions/setup-python) or put python3 on the PATH"

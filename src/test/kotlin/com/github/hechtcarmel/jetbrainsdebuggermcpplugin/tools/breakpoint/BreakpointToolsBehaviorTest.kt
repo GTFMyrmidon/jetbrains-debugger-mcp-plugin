@@ -94,13 +94,16 @@ class BreakpointToolsBehaviorTest : McpHttpTestCase() {
     private fun allLineBreakpoints() =
         breakpointManager().allBreakpoints.filterIsInstance<XLineBreakpoint<*>>()
 
+    private val javaFilePath: String
+        get() = javaFile.toString().replace('\\', '/')
+
     private fun callTool(name: String, arguments: String) =
         pumpingEdt { post(McpConstants.MCP_ENDPOINT_PATH, toolCall(name, arguments)) }
             .jsonBody()["result"]!!.jsonObject
 
     private fun setBreakpoint(extra: String = "", line: Int = 5) = callTool(
         "set_breakpoint",
-        """{"file_path":"$javaFile","line":$line$extra}"""
+        """{"file_path":"$javaFilePath","line":$line$extra}"""
     )
 
     private fun assertSucceeded(result: kotlinx.serialization.json.JsonObject) {
@@ -328,7 +331,7 @@ class BreakpointToolsBehaviorTest : McpHttpTestCase() {
     fun `test missing required parameters are reported by name`() {
         listOf(
             """{"line":5}""" to "file_path",
-            """{"file_path":"$javaFile"}""" to "line",
+            """{"file_path":"$javaFilePath"}""" to "line",
         ).forEach { (arguments, expectedName) ->
             val result = callTool("set_breakpoint", arguments)
 
